@@ -1,1 +1,1 @@
-# Postgre_DBA_202403_OTUS
+≡ *Проект создан для обмена данными при выполнении ДЗ в рамках обучения на курсе - "PostgreSQL для администраторов баз данных и разработчиков" от Компании* ✨![N|Solid](https://otus.ru/_next/static/images/img/logo2022_without_text-ad6a01e8608432b9967c441a0f4760b4.svg)
