@@ -1,0 +1,296 @@
+# Домашнее задание
+# Настройка autovacuum с учетом особеностей производительности:
+### Цель:
+- запустить нагрузочный тест pgbench
+- настроить параметры autovacuum
+- проверить работу autovacuum
+
+### Описание/Пошаговая инструкция выполнения домашнего задания:
+- Создать инстанс ВМ с 2 ядрами и 4 Гб ОЗУ и SSD 10GB
+- Установить на него PostgreSQL 15 с дефолтными настройками
+- Создать БД для тестов: выполнить pgbench -i postgres
+- Запустить pgbench -c8 -P 6 -T 60 -U postgres postgres
+- Применить параметры настройки PostgreSQL из прикрепленного к материалам занятия файла
+- Протестировать заново
+- Что изменилось и почему?
+- Создать таблицу с текстовым полем и заполнить случайными или сгенерированными данным в размере 1млн строк
+- Посмотреть размер файла с таблицей
+- 5 раз обновить все строчки и добавить к каждой строчке любой символ
+- Посмотреть количество мертвых строчек в таблице и когда последний раз приходил автовакуум
+- Подождать некоторое время, проверяя, пришел ли автовакуум
+- 5 раз обновить все строчки и добавить к каждой строчке любой символ
+- Посмотреть размер файла с таблицей
+- Отключить Автовакуум на конкретной таблице
+- 10 раз обновить все строчки и добавить к каждой строчке любой символ
+- Посмотреть размер файла с таблицей
+- Объясните полученный результат
+- Не забудьте включить автовакуум)
+- Задание со *:
+	- Написать анонимную процедуру, в которой в цикле 10 раз обновятся все строчки в искомой таблице.
+	- Не забыть вывести номер шага цикла.
+
+### Критерии оценки:
+
+Критерии оценивания:
+- Выполнение ДЗ: 10 баллов
+- плюс 5 баллов за задние со *
+- плюс 2 балла за красивое решение
+- минус 2 балла за рабочее решение, и недостатки указанные преподавателем не устранены
+
+# Решение:
+### Используемые инструменты:
+- Docker, источник - [www.docker.com](https://www.docker.com/ "www.docker.com")
+- Образ *postgres:15.6-alpine3.19*, источник -  [hub.docker.com](https://hub.docker.com/)
+- Desktop application DBeaver, источник -  [dbeaver](https://dbeaver.io/) ![](https://dbeaver.io/wp-content/uploads/2015/09/beaver-head.png)
+
+## Ход выполнения:
+### Запуск нагрузочного теста pgbench:
+1. Создание базы данных для тестирования:
+```sql
+CREATE DATABASE postgre_dba_202403_otus
+;
+```
+
+2. Подключаемся в терминале под пользоваьелем postgres:
+```
+su - postgres
+```
+
+3. Производим инициализацию для pgbench:
+```
+pgbench -i postgre_dba_202403_otus
+```
+**dropping old tables...
+NOTICE:  table "pgbench_accounts" does not exist, skipping
+NOTICE:  table "pgbench_branches" does not exist, skipping
+NOTICE:  table "pgbench_history" does not exist, skipping
+NOTICE:  table "pgbench_tellers" does not exist, skipping
+creating tables...
+generating data (client-side)...
+100000 of 100000 tuples (100%) done (elapsed 0.10 s, remaining 0.00 s)
+vacuuming...
+creating primary keys...
+done in 0.24 s (drop tables 0.00 s, create tables 0.01 s, client-side generate 0.14 s, vacuum 0.04 s, primary keys 0.05 s).**
+
+4. В результате запуска команды pgbench -i postgre_dba_202403_otus в базе  postgre_dba_202403_otus создадлись 4 таблицы:
+- pgbench_accounts
+- pgbench_branches
+- pgbench_history
+- pgbench_tellers
+
+5. Запускаем команду в терминале - pgbench -c8 -P 6 -T 60 -U postgres postgre_dba_202403_otus где:
+- -c8 - Число имитируемых клиентов, то есть число одновременных сеансов базы данных (8 штук)
+- -P 6 - Выводить отчёт о прогрессе (pts, lat) через заданное число секунд (каждые 6 сек)
+- -T 60 - Выполнять тест с ограничением по времени (в секундах), а не по числу транзакций для каждого клиента (в течение 60 секунд)
+
+Результат ```- pgbench -c8 -P 6 -T 60 -U postgres postgre_dba_202403_otus``` :
+**starting vacuum...end.
+progress: 6.0 s, 697.8 tps, lat 11.414 ms stddev 10.007, 0 failed
+progress: 12.0 s, 724.0 tps, lat 11.045 ms stddev 9.530, 0 failed
+progress: 18.0 s, 716.2 tps, lat 11.166 ms stddev 9.868, 0 failed
+progress: 24.0 s, 703.0 tps, lat 11.377 ms stddev 9.506, 0 failed
+progress: 30.0 s, 723.7 tps, lat 11.052 ms stddev 9.247, 0 failed
+progress: 36.0 s, 721.0 tps, lat 11.086 ms stddev 9.558, 0 failed
+progress: 42.0 s, 713.0 tps, lat 11.226 ms stddev 9.686, 0 failed
+progress: 48.0 s, 718.3 tps, lat 11.136 ms stddev 9.493, 0 failed
+progress: 54.0 s, 726.0 tps, lat 11.023 ms stddev 9.541, 0 failed
+progress: 60.0 s, 725.5 tps, lat 11.023 ms stddev 9.396, 0 failed
+transaction type: <builtin: TPC-B (sort of)>
+scaling factor: 1
+query mode: simple
+number of clients: 8
+number of threads: 1
+maximum number of tries: 1
+duration: 60 s
+number of transactions actually processed: 43019
+number of failed transactions: 0 (0.000%)
+latency average = 11.153 ms
+latency stddev = 9.584 ms
+initial connection time = 14.231 ms
+tps = 717.025733 (without initial connection time)**
+
+6. Меняем в терминале с помощью редактора vi конфигурационный фал postgresql.conf, устанавливаем следующин пераметры:
+- max_connections = 40
+- shared_buffers = 1GB -- сколько выделенной памяти будет использоваться PostgreSQL для буферов в разделяемой памяти
+- effective_cache_size = 3GB --Определяет представление планировщика об эффективном размере дискового кеша, доступном для одного запроса. Это представление влияет на оценку стоимости использования индекса; чем выше это значение, тем больше вероятность, что будет применяться сканирование по индексу, чем ниже, тем более вероятно, что будет выбрано последовательное сканирование
+- maintenance_work_mem = 512MB --Задаёт максимальный объём памяти для операций обслуживания БД, в частности VACUUM, CREATE INDEX и ALTER TABLE ADD FOREIGN KEY
+- checkpoint_completion_target = 0.9 --Интенсивность записи в WAL (Со значением 0.9, заданным по умолчанию, можно ожидать, что PostgreSQL завершит процедуру контрольной точки незадолго до следующей запланированной (примерно на 90% выполнения предыдущей контрольной точки))
+- wal_buffers = 16MB
+- default_statistics_target = 500 --увеличивает точность оценок планировщика, улучшая статистику пуетем увелечения анализа данных на большем чосле строк по показателям: "самые популярные значения", "границы гистограмм"
+- random_page_cost = 4 -Задаёт приблизительную стоимость чтения одной произвольной страницы с диска
+- effective_io_concurrency = 2
+- work_mem = 6553kB --Задаёт базовый максимальный объём памяти, который будет использоваться во внутренних операциях при обработке запросов (например, для сортировки или хеш-таблиц), прежде чем будут задействованы временные файлы на диске
+- min_wal_size = 4GB регулирует переработку wal сегментов
+- max_wal_size = 16GB регулирует переработку wal сегментов
+
+7. Перестартовываем кластер и запускаем команду в терминале - pgbench -c8 -P 6 -T 60 -U postgres postgre_dba_202403_otus:
+Результат:
+**starting vacuum...end.
+progress: 6.0 s, 693.7 tps, lat 11.485 ms stddev 10.244, 0 failed
+progress: 12.0 s, 717.7 tps, lat 11.145 ms stddev 9.577, 0 failed
+progress: 18.0 s, 726.2 tps, lat 11.020 ms stddev 10.008, 0 failed
+progress: 24.0 s, 717.0 tps, lat 11.141 ms stddev 9.558, 0 failed
+progress: 30.0 s, 730.3 tps, lat 10.954 ms stddev 9.404, 0 failed
+progress: 36.0 s, 731.0 tps, lat 10.954 ms stddev 9.450, 0 failed
+progress: 42.0 s, 714.2 tps, lat 11.191 ms stddev 9.289, 0 failed
+progress: 48.0 s, 715.2 tps, lat 11.179 ms stddev 9.463, 0 failed
+progress: 54.0 s, 713.8 tps, lat 11.208 ms stddev 9.550, 0 failed
+progress: 60.0 s, 726.0 tps, lat 11.022 ms stddev 9.624, 0 failed
+transaction type: <builtin: TPC-B (sort of)>
+scaling factor: 1
+query mode: simple
+number of clients: 8
+number of threads: 1
+maximum number of tries: 1
+duration: 60 s
+number of transactions actually processed: 43118
+number of failed transactions: 0 (0.000%)
+latency average = 11.128 ms
+latency stddev = 9.619 ms
+initial connection time = 14.954 ms
+tps = 718.678059 (without initial connection time)**
+
+В моем случае изменерия можно сказать отсутствуют, т.к. кластер развернут в docker. Полагаю при использовании ВМ значение tps и latency должны были быть выше, т.к. произошло увелечение work_mem, shared_buffers, effective_cache_size, min_wal_size, max_wal_size
+
+8. Возврат настроек конфигурационного файла (предварительно делал копию исходного файла):
+```
+cp -f postgresql_old.conf postgresql.conf
+```
+### Настройка и проверка работы autovacuum:
+
+
+
+1. Создать таблицу с текстовым полем и заполнить случайными или сгенерированными данным в размере 1млн строк:
+```sql
+DROP TABLE IF EXISTS test_vaccum
+;
+CREATE TABLE IF NOT EXISTS test_vaccum
+AS
+SELECT
+    md5(id::text) AS txt
+FROM PG_CATALOG.GENERATE_SERIES(1, 1000000, 1) AS gn(id)
+;
+```
+2. Посмотреть размер файла с таблицей:
+```sql
+SELECT pg_size_pretty(pg_total_relation_size('test_vaccum'));
+```
+Результат:
+**65 MB**
+
+3. 5 раз обновить все строчки и добавить к каждой строчке любой символ:
+```sql
+DO
+$$
+DECLARE
+    _max_i integer = 5;
+BEGIN
+	FOR i IN 1.._max_i LOOP
+        UPDATE 	test_vaccum
+        SET txt = txt || i::TEXT
+        ;
+        RAISE NOTICE 'Номер шага цикла %', i
+        ;
+	END LOOP
+	;
+END;
+$$
+;
+```
+
+4. Посмотреть количество мертвых строчек в таблице и когда последний раз приходил автовакуум:
+```sql
+SELECT
+    relname
+    ,n_live_tup
+    ,n_dead_tup
+    ,trunc(100*n_dead_tup/(n_live_tup+1))::float AS "ratio%"
+    ,last_autovacuum
+FROM pg_stat_user_tables
+WHERE 1=1
+AND relname = 'test_vaccum'
+;
+```
+Результат:
+relname	n_live_tup	n_dead_tup	ratio%	last_autovacuum
+test_vaccum	1000000	5000000	499.0	2024-05-02 18:12:54.703 +0300
+
+5. Подождать некоторое время, проверяя, пришел ли автовакуум
+relname	n_live_tup	n_dead_tup	ratio%	last_autovacuum
+test_vaccum	1000000	0	0.0	2024-05-02 18:22:55.062 +0300
+
+***Автоваккум прошел***
+
+6. 5 раз обновить все строчки и добавить к каждой строчке любой символ
+```sql
+DO
+$$
+DECLARE
+    _max_i integer = 5;
+BEGIN
+	FOR i IN 1.._max_i LOOP
+        UPDATE 	test_vaccum
+        SET txt = txt || i::TEXT
+        ;
+        RAISE NOTICE 'Номер шага цикла %', i
+        ;
+	END LOOP
+	;
+END;
+$$
+;
+```
+
+7. Посмотреть размер файла с таблицей
+```sql
+SELECT pg_size_pretty(pg_total_relation_size('test_vaccum'));
+```
+Результат:
+**438 MB**
+
+8. Отключить Автовакуум на test_vaccum таблице
+```sql
+ALTER TABLE test_vaccum
+SET (autovacuum_enabled = ON)
+;
+```
+
+9. 10 раз обновить все строчки и добавить к каждой строчке любой символ:
+```sql
+DO
+$$
+DECLARE 
+    _max_i integer = 10;
+BEGIN 
+    FOR i IN 1.._max_i LOOP
+        
+        UPDATE  test_vaccum
+        SET txt = txt || i::TEXT
+        ;
+    
+        RAISE NOTICE 'Номер шага цикла %', i
+        ;
+    
+    END LOOP 
+    ;    
+END;
+$$
+;
+```
+
+10. Посмотреть размер файла с таблицей
+```sql
+SELECT pg_size_pretty(pg_total_relation_size('test_vaccum'));
+```
+Результат:
+**895 MB**
+
+11. Объясните полученный результат: 
+*Произошло увелечение размера таблицы, т.к. любая операция DML генерирует мертвые записи в файле таблицы, которые вычищаются операцией autovacuum. Но следует отметить что autovacuum не уменьшает размер таблицы, уменьшение таблицы происходит при vacuum full table_name, путем переноса живых записей в новый файл и удаления старого файла. autovacuum только способствует не такому бысторму росту объему таблицы, путем удаления мертвых записей из файла таблицы, для высвобождения места при вставке или обновлении новых записей.*
+
+12. Не забудьте включить автовакуум)
+```sql
+ALTER TABLE test_vaccum 
+SET (autovacuum_enabled = OFF)
+;
+```
