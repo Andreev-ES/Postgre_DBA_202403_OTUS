@@ -9,12 +9,8 @@ CREATE TABLE IF NOT EXISTS public.partition_table(
 PARTITION BY RANGE (dt)
 ;
 
---Описание процеудры партиционирования
---CALL public.create_partition ()
---;
-
 --Создание партиций
-CALL service.create_partition (
+CALL public.create_partition (
     _table_name => 'partition_table'
     ,_schema_name => 'public'
     ,_is_create_index => TRUE
@@ -30,7 +26,7 @@ CALL service.create_partition (
     ,_size_arhive_partition => 'y'
     ,_dt_start_arhive_partition => '2023-01-01'
     ,_dt_end_arhive_partition => '2023-12-31'
-    ,_is_relocate_data_to_arhive_partition = TRUE
+    ,_is_relocate_data_to_arhive_partition => FALSE
 
     --=============fact============================
     ,_is_create_fact_partition => TRUE 
@@ -62,12 +58,9 @@ CALL public.create_partition (
 
     --=============arhive============================
     ,_is_create_arhive_partition => TRUE    
-    ,_size_arhive_partition => 'y'
-    ,_dt_start_arhive_partition => '2024-01-01'
-    ,_dt_end_arhive_partition => '2024-12-31'
+    ,_size_arhive_partition => 'm'
+    ,_dt_start_arhive_partition => '2023-01-01'
+    ,_dt_end_arhive_partition => '2023-12-31'
     ,_is_relocate_data_to_arhive_partition => TRUE
 )
 ;
-
-
-

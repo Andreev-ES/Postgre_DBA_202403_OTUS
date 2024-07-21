@@ -6,18 +6,27 @@ CREATE PROCEDURE public.create_partition(
     _table_name TEXT DEFAULT NULL                       
     ,_schema_name TEXT DEFAULT NULL                     
     ,_is_create_index bool DEFAULT FALSE                
-    ,_list_fields_key_index TEXT DEFAULT ''::text       
-    ,_table_space_arhive TEXT DEFAULT 'pg_default'::text        
-    ,_table_space_fact TEXT DEFAULT 'pg_default'::text      
+    ,_list_fields_key_index TEXT DEFAULT ''::TEXT
+    
+    --=============default============================
+    ,_is_create_default_partition boolean DEFAULT FALSE
+    ,_table_space_default TEXT DEFAULT 'pg_default'::text            
+        
+     --=============arhive============================
     ,_is_create_arhive_partition bool DEFAULT FALSE     
+    ,_table_space_arhive TEXT DEFAULT 'pg_default'::text
     ,_size_arhive_partition text DEFAULT 'y'            
     ,_dt_start_arhive_partition timestamp DEFAULT NULL        
-    ,_dt_end_arhive_partition timestamp DEFAULT NULL          
-    ,_is_create_fact_partition bool DEFAULT FALSE       
+    ,_dt_end_arhive_partition timestamp DEFAULT NULL
+    ,_is_relocate_data_to_arhive_partition boolean DEFAULT FALSE
+    
+    --=============fact============================
+    ,_is_create_fact_partition bool DEFAULT FALSE 
+    ,_table_space_fact TEXT DEFAULT 'pg_default'::text 
     ,_size_fact_partition text DEFAULT 'm'              
     ,_dt_start_fact_partition timestamp DEFAULT NULL        
-    ,_dt_end_fact_partition timestamp DEFAULT NULL          
-    ,_is_relocate_data_to_arhive_partition boolean DEFAULT FALSE
+    ,_dt_end_fact_partition timestamp DEFAULT NULL       
+    
         
 )
 LANGUAGE plpgsql
@@ -40,35 +49,53 @@ BEGIN
         _description_proc = _description_proc || '_schema_name - Схема, содержащая секционированную таблицу.'  || chr(10);
         _description_proc = _description_proc || '_is_create_index - Признак наличия индекса в партициях. Т.е. нужен ли индекс в создаваемых партициях.'  || chr(10);
         _description_proc = _description_proc || '_list_fields_key_index - Перечень полей, входящих в ключ индекса. Релевантен если признак наличия индекса в партициях проставлен в TRUE. Передается в виде строки, поля указываюися через Запятую. Пример: ''dt_collected, data_source_id, virtual_machine_id'''  || chr(10);
-        _description_proc = _description_proc || '_table_space_arhive - Наименование табличного пространства, где будут хранится архивные партиции'  || chr(10);
-        _description_proc = _description_proc || '_table_space_fact - Наименование табличного пространства, где будут хранится фактические партиции'  || chr(10);
+        
+        --=============default============================
+        _description_proc = _description_proc || '_is_create_default_partition - Признак необходимости создание партиции по умолчанию. Значение по умолчанию = FALSE'  || chr(10);
+        _description_proc = _description_proc || '_table_space_default - Наименование табличного пространства, где будет хранится партиция по умолчанию. Релевантен, если _is_create_default_partition = TRUE'  || chr(10);    
+            
+       --=============arhive============================
         _description_proc = _description_proc || '_is_create_arhive_partition - Признак небходимости создания архивных партиций. Значение по умолчанию = FALSE'  || chr(10);
+        _description_proc = _description_proc || '_table_space_arhive - Наименование табличного пространства, где будут хранится архивные партиции'  || chr(10);  
         _description_proc = _description_proc || '_size_arhive_partition - Размер архивной партиции. допустимые значения: d,m,q,hy,y. Значение по умолчанию = y'  || chr(10);       
         _description_proc = _description_proc || '_dt_start_arhive_partition - Начальная дата создания архивных партиций. Параметр имеет тип данных timestamp. Релевантен, если _is_create_arhive_partition = TRUE'  || chr(10);
         _description_proc = _description_proc || '_dt_end_arhive_partition - Конечная дата создания архивных партиций. Параметр имеет тип данных timestamp. Релевантен, если _is_create_arhive_partition = TRUE'  || chr(10);
+        _description_proc = _description_proc || '_is_relocate_data_to_arhive_partition - Признак переноса данных из фактической партиции в архивную. Значение по умолчанию = FALSE'  || chr(10);
+    
+        --=============fact============================
         _description_proc = _description_proc || '_is_create_fact_partition - Признак небходимости создания фактических партиций. Значение по умолчанию = TRUE'  || chr(10);
+        _description_proc = _description_proc || '_table_space_fact - Наименование табличного пространства, где будут хранится фактические партиции'  || chr(10);
         _description_proc = _description_proc || '_size_fact_partition - Размер фактической партиции. допустимые значения: d,m,q,hy,y. Значение по умолчанию = m'  || chr(10);
         _description_proc = _description_proc || '_dt_start_fact_partition - Дата начала создания фактических партиций. Параметр имеет тип данных timestamp. Релевантен, если _is_create_fact_partition = TRUE'  || chr(10);
         _description_proc = _description_proc || '_dt_end_fact_partition - Дата окончания создания фактических партиций. Параметр имеет тип данных timestamp. Релевантен, если _is_create_fact_partition = TRUE'  || chr(10);   
-        _description_proc = _description_proc || '_is_relocate_data_to_arhive_partition - Признак переноса данных из фактической партиции в архивную. Значение по умолчанию = FALSE'  || chr(10);
+        
         _description_proc = _description_proc || 'Пример выполнения процедуры:' || chr(10) || ' 
         CALL public.create_partition (
-        _table_name => ''partition_table''
+        _table_name => ''test''
         ,_schema_name => ''public''
         ,_is_create_index => TRUE
-        ,_list_fields_key_index => ''dt_collected, data_source_id, virtual_machine_id''
-        ,_table_space_arhive => ''pg_default''
-        ,_table_space_fact => ''pg_default''
+        ,_list_fields_key_index => ''dt, txt''
+
+        --=============default============================
+        ,_is_create_default_partition => TRUE
+        ,_table_space_default => ''pg_default''
+        
+        --=============arhive============================
         ,_is_create_arhive_partition => TRUE
+        ,_table_space_arhive => ''pg_default''
         ,_size_arhive_partition => ''y''
         ,_dt_start_arhive_partition => ''2023-01-01''
         ,_dt_end_arhive_partition => ''2023-12-31''
+        ,_is_relocate_data_to_arhive_partition => TRUE
+
+        --=============fact============================
         ,_is_create_fact_partition => TRUE 
+        ,_table_space_fact => ''pg_default''
         ,_size_fact_partition => ''m''
         ,_dt_start_fact_partition => ''2024-01-01''
         ,_dt_end_fact_partition => ''2024-12-01''
-        ,_is_relocate_data_to_arhive_partition = TRUE
-    )';
+        
+    );';
         RAISE NOTICE '%', _description_proc
         ;
         RETURN
@@ -76,7 +103,28 @@ BEGIN
     END IF
     ;   
     _table_full_name = _schema_name || '.' || _table_name;
-     
+    
+--=====================================================Создание партиции по умолчанию начало============================================================  
+IF _is_create_default_partition THEN
+    _sql = 'CREATE TABLE IF NOT EXISTS ' || _table_full_name || '_default' || chr(10) ||
+           'PARTITION OF ' || _table_full_name || ' DEFAULT' || chr(10) ||
+           'TABLESPACE ' || _table_space_default || chr(10) || ';' || chr(10) || chr(10) ||
+            CASE  
+                WHEN _is_create_index = TRUE THEN 'CREATE INDEX IF NOT EXISTS _ix_' || _table_name || '_default ON  ' || _table_full_name || '_default USING btree (' || _list_fields_key_index || ');' || chr(10) || chr(10)
+            ELSE
+                ''
+            END 
+    ;
+
+--    RAISE NOTICE '%', _sql
+--    ;
+    EXECUTE _sql
+    ;
+
+END IF
+;
+--=====================================================Создание партиции по умолчанию конец============================================================ 
+
 --=====================================================Создание архивных партиций начало============================================================
     IF _is_create_arhive_partition THEN
         
@@ -131,6 +179,7 @@ BEGIN
                             ,string_agg('ALTER TABLE ' || pn.nspname || '.' || c.relname || ' DETACH PARTITION ' || pn.nspname  || '.' || pt.relname , ';'||chr(10)) AS sql_script_detach_partition
                             ,_sql AS sql_script_create_arhive_partition
                             ,string_agg('INSERT INTO ' || pn.nspname || '.' || c.relname || ' SELECT * FROM ' || pn.nspname || '.' || pt.relname , ';') AS sql_script_insert_partition
+                            ,string_agg (pn.nspname || '.' || pt.relname, ';') AS list_detach_tbl
                         FROM pg_catalog.pg_class AS c
                                 INNER JOIN pg_catalog.pg_namespace AS pn 
                                     ON 1=1
@@ -157,6 +206,7 @@ BEGIN
                                         gn < split_part(pg_get_expr(pt.relpartbound, pt.oid, TRUE),'''',4)::timestamp   
                                     )                                   
                         WHERE 1=1
+                        AND pt.relname NOT LIKE '%_default'
                         AND c.relname = _table_name
                         AND pn.nspname = _schema_name
                         GROUP BY c.relname
@@ -179,6 +229,7 @@ BEGIN
                                 ,sql_script_drop_partition
                                 ,max(dt_start_arhive_partition) OVER (PARTITION BY sql_script_drop_partition) AS max_dt_drop
                                 ,min (dt_start_arhive_partition) OVER (PARTITION BY sql_script_detach_partition ) AS min_dt_detach
+                                ,list_detach_tbl
                             FROM _temp_data_detach_partition
                             ORDER BY dt_start_arhive_partition
                         LOOP
@@ -188,21 +239,32 @@ BEGIN
                             _sql = REPLACE(_sql, '_dt_end_partition', _rec.dt_end_arhive_partition);
                             _sql = REPLACE(_sql, '_ix_name', _rec.index_name);
                             
-                            IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN 
-                                EXECUTE _rec.sql_script_detach_partition
+                            IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN
+                             
+                            
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN 
+                                    EXECUTE _rec.sql_script_detach_partition
+                                    ;
+                                END IF
                                 ;
                             END IF
                             ;
                             EXECUTE _sql
                             ;
                             IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN
-                                EXECUTE _rec.sql_script_insert_partition
-                                ;
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN
+                                    EXECUTE _rec.sql_script_insert_partition
+                                    ;
+                                END IF
+                                ;                            
                             END IF                      
                             ;
                             IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN 
-                                EXECUTE _rec.sql_script_drop_partition
-                                ;
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN                       
+                                    EXECUTE _rec.sql_script_drop_partition
+                                    ;
+                                END IF
+                                ;                           
                             END IF
                             ;
                             --RAISE NOTICE '%', _sql;
@@ -276,6 +338,7 @@ BEGIN
                         ,string_agg('ALTER TABLE ' || pn.nspname || '.' || c.relname || ' DETACH PARTITION ' || pn.nspname  || '.' || pt.relname , ';'||chr(10)) AS sql_script_detach_partition
                         ,_sql AS sql_script_create_arhive_partition
                         ,string_agg('INSERT INTO ' || pn.nspname || '.' || c.relname || ' SELECT * FROM ' || pn.nspname || '.' || pt.relname , ';') AS sql_script_insert_partition
+                        ,string_agg (pn.nspname || '.' || pt.relname, ';') AS list_detach_tbl
                     FROM pg_catalog.pg_class AS c
                             INNER JOIN pg_catalog.pg_namespace AS pn 
                                 ON 1=1
@@ -302,6 +365,7 @@ BEGIN
                                     gn < split_part(pg_get_expr(pt.relpartbound, pt.oid, TRUE),'''',4)::timestamp   
                                 )                               
                     WHERE 1=1
+                    AND pt.relname NOT LIKE '%_default'
                     AND c.relname = _table_name
                     AND pn.nspname = _schema_name
                     GROUP BY c.relname
@@ -324,6 +388,7 @@ BEGIN
                             ,sql_script_drop_partition
                             ,max(dt_start_arhive_partition) OVER (PARTITION BY sql_script_drop_partition) AS max_dt_drop
                             ,min (dt_start_arhive_partition) OVER (PARTITION BY sql_script_detach_partition ) AS min_dt_detach
+                            ,list_detach_tbl
                         FROM _temp_data_detach_partition
                         ORDER BY dt_start_arhive_partition
                     LOOP
@@ -333,21 +398,30 @@ BEGIN
                         _sql = REPLACE(_sql, '_dt_end_partition', _rec.dt_end_arhive_partition);
                         _sql = REPLACE(_sql, '_ix_name', _rec.index_name);
                         
-                        IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN 
-                            EXECUTE _rec.sql_script_detach_partition
+                        IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN 
+                                EXECUTE _rec.sql_script_detach_partition
+                                ;
+                            END IF
                             ;
                         END IF
                         ;
                         EXECUTE _sql
                         ;
                         IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN
-                            EXECUTE _rec.sql_script_insert_partition
-                            ;
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN
+                                EXECUTE _rec.sql_script_insert_partition
+                                ;
+                            END IF
+                            ;                            
                         END IF                      
                         ;
                         IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN 
-                            EXECUTE _rec.sql_script_drop_partition
-                            ;
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN                       
+                                EXECUTE _rec.sql_script_drop_partition
+                                ;
+                            END IF
+                            ;                           
                         END IF
                         ;
                         --RAISE NOTICE '%', _sql;                       
@@ -456,6 +530,7 @@ BEGIN
                             ,string_agg('ALTER TABLE ' || pn.nspname || '.' || c.relname || ' DETACH PARTITION ' || pn.nspname  || '.' || pt.relname , ';'||chr(10)) AS sql_script_detach_partition
                             ,_sql AS sql_script_create_arhive_partition
                             ,string_agg('INSERT INTO ' || pn.nspname || '.' || c.relname || ' SELECT * FROM ' || pn.nspname || '.' || pt.relname , ';') AS sql_script_insert_partition
+                            ,string_agg (pn.nspname || '.' || pt.relname, ';') AS list_detach_tbl
                         FROM pg_catalog.pg_class AS c
                                 INNER JOIN pg_catalog.pg_namespace AS pn 
                                     ON 1=1
@@ -482,6 +557,7 @@ BEGIN
                                         gn < split_part(pg_get_expr(pt.relpartbound, pt.oid, TRUE),'''',4)::timestamp   
                                     )                               
                         WHERE 1=1
+                        AND pt.relname NOT LIKE '%_default'
                         AND c.relname = _table_name
                         AND pn.nspname = _schema_name
                         GROUP BY c.relname
@@ -504,6 +580,7 @@ BEGIN
                                 ,sql_script_drop_partition
                                 ,max(dt_start_arhive_partition) OVER (PARTITION BY sql_script_drop_partition) AS max_dt_drop
                                 ,min (dt_start_arhive_partition) OVER (PARTITION BY sql_script_detach_partition ) AS min_dt_detach
+                                ,list_detach_tbl
                             FROM _temp_data_detach_partition
                             ORDER BY dt_start_arhive_partition
                         LOOP
@@ -513,21 +590,30 @@ BEGIN
                             _sql = REPLACE(_sql, '_dt_end_partition', _rec.dt_end_arhive_partition);
                             _sql = REPLACE(_sql, '_ix_name', _rec.index_name);
                             
-                            IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN 
-                                EXECUTE _rec.sql_script_detach_partition
+                            IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN 
+                                    EXECUTE _rec.sql_script_detach_partition
+                                    ;
+                                END IF
                                 ;
                             END IF
                             ;
                             EXECUTE _sql
                             ;
                             IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN
-                                EXECUTE _rec.sql_script_insert_partition
-                                ;
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN
+                                    EXECUTE _rec.sql_script_insert_partition
+                                    ;
+                                END IF
+                                ;                            
                             END IF                      
                             ;
                             IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN 
-                                EXECUTE _rec.sql_script_drop_partition
-                                ;
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN                       
+                                    EXECUTE _rec.sql_script_drop_partition
+                                    ;
+                                END IF
+                                ;                           
                             END IF
                             ;
                             --RAISE NOTICE '%', _sql;
@@ -608,6 +694,7 @@ BEGIN
                         ,string_agg('ALTER TABLE ' || pn.nspname || '.' || c.relname || ' DETACH PARTITION ' || pn.nspname  || '.' || pt.relname , ';'||chr(10)) AS sql_script_detach_partition
                         ,_sql AS sql_script_create_arhive_partition
                         ,string_agg('INSERT INTO ' || pn.nspname || '.' || c.relname || ' SELECT * FROM ' || pn.nspname || '.' || pt.relname , ';') AS sql_script_insert_partition
+                        ,string_agg (pn.nspname || '.' || pt.relname, ';') AS list_detach_tbl
                     FROM pg_catalog.pg_class AS c
                             INNER JOIN pg_catalog.pg_namespace AS pn 
                                 ON 1=1
@@ -634,6 +721,7 @@ BEGIN
                                     gn < split_part(pg_get_expr(pt.relpartbound, pt.oid, TRUE),'''',4)::timestamp   
                                 )                               
                     WHERE 1=1
+                    AND pt.relname NOT LIKE '%_default'
                     AND c.relname = _table_name
                     AND pn.nspname = _schema_name
                     GROUP BY c.relname
@@ -656,6 +744,7 @@ BEGIN
                             ,sql_script_drop_partition
                             ,max(dt_start_arhive_partition) OVER (PARTITION BY sql_script_drop_partition) AS max_dt_drop
                             ,min (dt_start_arhive_partition) OVER (PARTITION BY sql_script_detach_partition ) AS min_dt_detach
+                            ,list_detach_tbl
                         FROM _temp_data_detach_partition
                         ORDER BY dt_start_arhive_partition
                     LOOP
@@ -665,21 +754,30 @@ BEGIN
                         _sql = REPLACE(_sql, '_dt_end_partition', _rec.dt_end_arhive_partition);
                         _sql = REPLACE(_sql, '_ix_name', _rec.index_name);
                         
-                        IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN 
-                            EXECUTE _rec.sql_script_detach_partition
+                        IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN 
+                                EXECUTE _rec.sql_script_detach_partition
+                                ;
+                            END IF
                             ;
                         END IF
                         ;
                         EXECUTE _sql
                         ;
                         IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN
-                            EXECUTE _rec.sql_script_insert_partition
-                            ;
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN
+                                EXECUTE _rec.sql_script_insert_partition
+                                ;
+                            END IF
+                            ;                            
                         END IF                      
                         ;
                         IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN 
-                            EXECUTE _rec.sql_script_drop_partition
-                            ;
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN                       
+                                EXECUTE _rec.sql_script_drop_partition
+                                ;
+                            END IF
+                            ;                           
                         END IF
                         ;
                         --RAISE NOTICE '%', _sql;
@@ -778,6 +876,7 @@ BEGIN
                             ,string_agg('ALTER TABLE ' || pn.nspname || '.' || c.relname || ' DETACH PARTITION ' || pn.nspname  || '.' || pt.relname , ';'||chr(10)) AS sql_script_detach_partition
                             ,_sql AS sql_script_create_arhive_partition
                             ,string_agg('INSERT INTO ' || pn.nspname || '.' || c.relname || ' SELECT * FROM ' || pn.nspname || '.' || pt.relname , ';') AS sql_script_insert_partition
+                            ,string_agg (pn.nspname || '.' || pt.relname, ';') AS list_detach_tbl
                         FROM pg_catalog.pg_class AS c
                                 INNER JOIN pg_catalog.pg_namespace AS pn 
                                     ON 1=1
@@ -804,6 +903,7 @@ BEGIN
                                         gn < split_part(pg_get_expr(pt.relpartbound, pt.oid, TRUE),'''',4)::timestamp   
                                     )                               
                         WHERE 1=1
+                        AND pt.relname NOT LIKE '%_default'
                         AND c.relname = _table_name
                         AND pn.nspname = _schema_name
                         GROUP BY c.relname
@@ -826,6 +926,7 @@ BEGIN
                                 ,sql_script_drop_partition
                                 ,max(dt_start_arhive_partition) OVER (PARTITION BY sql_script_drop_partition) AS max_dt_drop
                                 ,min (dt_start_arhive_partition) OVER (PARTITION BY sql_script_detach_partition ) AS min_dt_detach
+                                ,list_detach_tbl
                             FROM _temp_data_detach_partition
                             ORDER BY dt_start_arhive_partition
                         LOOP
@@ -835,21 +936,30 @@ BEGIN
                             _sql = REPLACE(_sql, '_dt_end_partition', _rec.dt_end_arhive_partition);
                             _sql = REPLACE(_sql, '_ix_name', _rec.index_name);
                             
-                            IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN 
-                                EXECUTE _rec.sql_script_detach_partition
+                            IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN 
+                                    EXECUTE _rec.sql_script_detach_partition
+                                    ;
+                                END IF
                                 ;
                             END IF
                             ;
                             EXECUTE _sql
                             ;
                             IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN
-                                EXECUTE _rec.sql_script_insert_partition
-                                ;
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN
+                                    EXECUTE _rec.sql_script_insert_partition
+                                    ;
+                                END IF
+                                ;                            
                             END IF                      
                             ;
                             IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN 
-                                EXECUTE _rec.sql_script_drop_partition
-                                ;
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN                       
+                                    EXECUTE _rec.sql_script_drop_partition
+                                    ;
+                                END IF
+                                ;                           
                             END IF
                             ;
                             --RAISE NOTICE '%', _sql;
@@ -923,6 +1033,7 @@ BEGIN
                         ,string_agg('ALTER TABLE ' || pn.nspname || '.' || c.relname || ' DETACH PARTITION ' || pn.nspname  || '.' || pt.relname , ';'||chr(10)) AS sql_script_detach_partition
                         ,_sql AS sql_script_create_arhive_partition
                         ,string_agg('INSERT INTO ' || pn.nspname || '.' || c.relname || ' SELECT * FROM ' || pn.nspname || '.' || pt.relname , ';') AS sql_script_insert_partition
+                        ,string_agg (pn.nspname || '.' || pt.relname, ';') AS list_detach_tbl
                     FROM pg_catalog.pg_class AS c
                             INNER JOIN pg_catalog.pg_namespace AS pn 
                                 ON 1=1
@@ -949,13 +1060,14 @@ BEGIN
                                     gn < split_part(pg_get_expr(pt.relpartbound, pt.oid, TRUE),'''',4)::timestamp   
                                 )           
                     WHERE 1=1
+                    AND pt.relname NOT LIKE '%_default'
                     AND c.relname = _table_name
                     AND pn.nspname = _schema_name
                     GROUP BY c.relname
                              ,pn.nspname
                              ,gn
                     ;
-
+                    --RETURN;
                     FOR _rec IN 
                         SELECT 
                             nspname
@@ -971,6 +1083,7 @@ BEGIN
                             ,sql_script_drop_partition
                             ,max(dt_start_arhive_partition) OVER (PARTITION BY sql_script_drop_partition) AS max_dt_drop
                             ,min (dt_start_arhive_partition) OVER (PARTITION BY sql_script_detach_partition ) AS min_dt_detach
+                            ,list_detach_tbl
                         FROM _temp_data_detach_partition
                         ORDER BY dt_start_arhive_partition
                     LOOP
@@ -980,21 +1093,30 @@ BEGIN
                         _sql = REPLACE(_sql, '_dt_end_partition', _rec.dt_end_arhive_partition);
                         _sql = REPLACE(_sql, '_ix_name', _rec.index_name);
                         
-                        IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN 
-                            EXECUTE _rec.sql_script_detach_partition
+                        IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN 
+                                EXECUTE _rec.sql_script_detach_partition
+                                ;
+                            END IF
                             ;
                         END IF
                         ;
                         EXECUTE _sql
                         ;
                         IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN
-                            EXECUTE _rec.sql_script_insert_partition
-                            ;
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN
+                                EXECUTE _rec.sql_script_insert_partition
+                                ;
+                            END IF
+                            ;                            
                         END IF                      
                         ;
                         IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN 
-                            EXECUTE _rec.sql_script_drop_partition
-                            ;
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN                       
+                                EXECUTE _rec.sql_script_drop_partition
+                                ;
+                            END IF
+                            ;                           
                         END IF
                         ;
                         --RAISE NOTICE '%', _sql;
@@ -1091,6 +1213,7 @@ BEGIN
                             ,string_agg('ALTER TABLE ' || pn.nspname || '.' || c.relname || ' DETACH PARTITION ' || pn.nspname  || '.' || pt.relname , ';'||chr(10)) AS sql_script_detach_partition
                             ,_sql AS sql_script_create_arhive_partition
                             ,string_agg('INSERT INTO ' || pn.nspname || '.' || c.relname || ' SELECT * FROM ' || pn.nspname || '.' || pt.relname , ';') AS sql_script_insert_partition
+                            ,string_agg (pn.nspname || '.' || pt.relname, ';') AS list_detach_tbl
                         FROM pg_catalog.pg_class AS c
                                 INNER JOIN pg_catalog.pg_namespace AS pn 
                                     ON 1=1
@@ -1117,6 +1240,7 @@ BEGIN
                                         gn < split_part(pg_get_expr(pt.relpartbound, pt.oid, TRUE),'''',4)::timestamp   
                                     )                               
                         WHERE 1=1
+                        AND pt.relname NOT LIKE '%_default'
                         AND c.relname = _table_name
                         AND pn.nspname = _schema_name
                         GROUP BY c.relname
@@ -1139,6 +1263,7 @@ BEGIN
                                 ,sql_script_drop_partition
                                 ,max(dt_start_arhive_partition) OVER (PARTITION BY sql_script_drop_partition) AS max_dt_drop
                                 ,min (dt_start_arhive_partition) OVER (PARTITION BY sql_script_detach_partition ) AS min_dt_detach
+                                ,list_detach_tbl
                             FROM _temp_data_detach_partition
                             ORDER BY dt_start_arhive_partition
                         LOOP
@@ -1148,21 +1273,30 @@ BEGIN
                             _sql = REPLACE(_sql, '_dt_end_partition', _rec.dt_end_arhive_partition);
                             _sql = REPLACE(_sql, '_ix_name', _rec.index_name);
                             
-                            IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN 
-                                EXECUTE _rec.sql_script_detach_partition
+                            IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN 
+                                    EXECUTE _rec.sql_script_detach_partition
+                                    ;
+                                END IF
                                 ;
                             END IF
                             ;
                             EXECUTE _sql
                             ;
                             IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN
-                                EXECUTE _rec.sql_script_insert_partition
-                                ;
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN
+                                    EXECUTE _rec.sql_script_insert_partition
+                                    ;
+                                END IF
+                                ;                            
                             END IF                      
                             ;
                             IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN 
-                                EXECUTE _rec.sql_script_drop_partition
-                                ;
+                                IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN                       
+                                    EXECUTE _rec.sql_script_drop_partition
+                                    ;
+                                END IF
+                                ;                           
                             END IF
                             ;
                             --RAISE NOTICE '%', _sql;
@@ -1235,6 +1369,7 @@ BEGIN
                         ,string_agg('ALTER TABLE ' || pn.nspname || '.' || c.relname || ' DETACH PARTITION ' || pn.nspname  || '.' || pt.relname , ';'||chr(10)) AS sql_script_detach_partition
                         ,_sql AS sql_script_create_arhive_partition
                         ,string_agg('INSERT INTO ' || pn.nspname || '.' || c.relname || ' SELECT * FROM ' || pn.nspname || '.' || pt.relname , ';') AS sql_script_insert_partition
+                        ,string_agg (pn.nspname || '.' || pt.relname, ';') AS list_detach_tbl
                     FROM pg_catalog.pg_class AS c
                             INNER JOIN pg_catalog.pg_namespace AS pn 
                                 ON 1=1
@@ -1261,13 +1396,14 @@ BEGIN
                                     gn < split_part(pg_get_expr(pt.relpartbound, pt.oid, TRUE),'''',4)::timestamp   
                                 )                           
                     WHERE 1=1
+                    AND pt.relname NOT LIKE '%_default'
                     AND c.relname = _table_name
                     AND pn.nspname = _schema_name
                     GROUP BY c.relname
                              ,pn.nspname
                              ,gn
                     ;                   
-                   
+
                     FOR _rec IN 
                         SELECT 
                             nspname
@@ -1283,8 +1419,9 @@ BEGIN
                             ,sql_script_drop_partition
                             ,max(dt_start_arhive_partition) OVER (PARTITION BY sql_script_drop_partition) AS max_dt_drop
                             ,min (dt_start_arhive_partition) OVER (PARTITION BY sql_script_detach_partition ) AS min_dt_detach
+                            ,list_detach_tbl
                         FROM _temp_data_detach_partition
-                        ORDER BY dt_start_arhive_partition 
+                        ORDER BY dt_start_arhive_partition
                     LOOP
                         _sql = REPLACE(_rec.sql_script_create_arhive_partition,'_table_part_name',_rec.table_part_arhive_name);
                         _sql = REPLACE(_sql, '_table_full_name', _table_full_name);
@@ -1292,21 +1429,30 @@ BEGIN
                         _sql = REPLACE(_sql, '_dt_end_partition', _rec.dt_end_arhive_partition);
                         _sql = REPLACE(_sql, '_ix_name', _rec.index_name);
                         
-                        IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN 
-                            EXECUTE _rec.sql_script_detach_partition
+                        IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN 
+                                EXECUTE _rec.sql_script_detach_partition
+                                ;
+                            END IF
                             ;
                         END IF
                         ;
                         EXECUTE _sql
                         ;
                         IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN
-                            EXECUTE _rec.sql_script_insert_partition
-                            ;
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN
+                                EXECUTE _rec.sql_script_insert_partition
+                                ;
+                            END IF
+                            ;                            
                         END IF                      
                         ;
                         IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN 
-                            EXECUTE _rec.sql_script_drop_partition
-                            ;
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN                       
+                                EXECUTE _rec.sql_script_drop_partition
+                                ;
+                            END IF
+                            ;                           
                         END IF
                         ;
                         --RAISE NOTICE '%', _sql;
@@ -1357,6 +1503,7 @@ BEGIN
         IF _size_arhive_partition = 'd' THEN
             --Проверять значение параметров _dt_start_arhive_partition и _dt_end_arhive_partition на NULL
             --нет смысла, т.к. это максимальная глубина создания партиций
+
                 IF  _is_relocate_data_to_arhive_partition THEN 
                             
                     _sql = 
@@ -1389,6 +1536,7 @@ BEGIN
                         ,string_agg('ALTER TABLE ' || pn.nspname || '.' || c.relname || ' DETACH PARTITION ' || pn.nspname  || '.' || pt.relname , ';'||chr(10)) AS sql_script_detach_partition
                         ,_sql AS sql_script_create_arhive_partition
                         ,string_agg('INSERT INTO ' || pn.nspname || '.' || c.relname || ' SELECT * FROM ' || pn.nspname || '.' || pt.relname , ';') AS sql_script_insert_partition
+                        ,string_agg (pn.nspname || '.' || pt.relname, ';') AS list_detach_tbl
                     FROM pg_catalog.pg_class AS c
                             INNER JOIN pg_catalog.pg_namespace AS pn 
                                 ON 1=1
@@ -1415,6 +1563,7 @@ BEGIN
                                     gn < split_part(pg_get_expr(pt.relpartbound, pt.oid, TRUE),'''',4)::timestamp   
                                 )                           
                     WHERE 1=1
+                    AND pt.relname NOT LIKE '%_default'
                     AND c.relname = _table_name
                     AND pn.nspname = _schema_name
                     GROUP BY c.relname
@@ -1437,6 +1586,7 @@ BEGIN
                             ,sql_script_drop_partition
                             ,max(dt_start_arhive_partition) OVER (PARTITION BY sql_script_drop_partition) AS max_dt_drop
                             ,min (dt_start_arhive_partition) OVER (PARTITION BY sql_script_detach_partition ) AS min_dt_detach
+                            ,list_detach_tbl
                         FROM _temp_data_detach_partition
                         ORDER BY dt_start_arhive_partition
                     LOOP
@@ -1446,21 +1596,30 @@ BEGIN
                         _sql = REPLACE(_sql, '_dt_end_partition', _rec.dt_end_arhive_partition);
                         _sql = REPLACE(_sql, '_ix_name', _rec.index_name);
                         
-                        IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN 
-                            EXECUTE _rec.sql_script_detach_partition
+                        IF _rec.min_dt_detach = _rec.dt_start_arhive_partition THEN
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN 
+                                EXECUTE _rec.sql_script_detach_partition
+                                ;
+                            END IF
                             ;
                         END IF
                         ;
                         EXECUTE _sql
                         ;
                         IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN
-                            EXECUTE _rec.sql_script_insert_partition
-                            ;
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN
+                                EXECUTE _rec.sql_script_insert_partition
+                                ;
+                            END IF
+                            ;                            
                         END IF                      
                         ;
                         IF _rec.max_dt_drop = _rec.dt_start_arhive_partition THEN 
-                            EXECUTE _rec.sql_script_drop_partition
-                            ;
+                            IF _rec.list_detach_tbl <> _rec.table_part_arhive_name THEN                       
+                                EXECUTE _rec.sql_script_drop_partition
+                                ;
+                            END IF
+                            ;                           
                         END IF
                         ;
                         --RAISE NOTICE '%', _sql;
@@ -1521,7 +1680,7 @@ BEGIN
             --будет определяться _dt_start_fact_partition и _dt_end_fact_partition
             IF  _dt_start_fact_partition IS NULL AND _dt_end_fact_partition IS NULL THEN
             
-                --смотрим что бы текущая дата равнялась последнему дню месяца в случае _size_arhive_partition = 'm'                                             
+                --если _size_arhive_partition = 'd', то просто по расписанию должна создаваться партиция на следующий день                                            
                 IF _size_arhive_partition = 'd' THEN
                 
                     _dt_start_fact_partition = current_date::timestamp + '1 day'::INTERVAL --следующий день
