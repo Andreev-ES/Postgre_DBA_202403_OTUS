@@ -1,10 +1,9 @@
-DROP PROCEDURE IF EXISTS public.create_partition
-;
-
-CREATE PROCEDURE public.create_partition(
+CREATE PROCEDURE service.create_partition(
     
     _table_name TEXT DEFAULT NULL                       
-    ,_schema_name TEXT DEFAULT NULL                     
+    ,_schema_name TEXT DEFAULT NULL    
+
+    --=============index============================                 
     ,_is_create_index bool DEFAULT FALSE                
     ,_list_fields_key_index TEXT DEFAULT ''::TEXT
     
@@ -19,6 +18,7 @@ CREATE PROCEDURE public.create_partition(
     ,_dt_start_arhive_partition timestamp DEFAULT NULL        
     ,_dt_end_arhive_partition timestamp DEFAULT NULL
     ,_is_relocate_data_to_arhive_partition boolean DEFAULT FALSE
+    ,_interval_before_reporting_period INTERVAL DEFAULT '0 day'::interval
     
     --=============fact============================
     ,_is_create_fact_partition bool DEFAULT FALSE 
@@ -47,6 +47,8 @@ BEGIN
         _description_proc = _description_proc || 'Передаваемые параметры:' || chr(10);
         _description_proc = _description_proc || '_table_name - Сама секционированная таблица. На деле является виртуальной. Данные не содержит.'  || chr(10);
         _description_proc = _description_proc || '_schema_name - Схема, содержащая секционированную таблицу.'  || chr(10);
+
+        --=============index============================  
         _description_proc = _description_proc || '_is_create_index - Признак наличия индекса в партициях. Т.е. нужен ли индекс в создаваемых партициях.'  || chr(10);
         _description_proc = _description_proc || '_list_fields_key_index - Перечень полей, входящих в ключ индекса. Релевантен если признак наличия индекса в партициях проставлен в TRUE. Передается в виде строки, поля указываюися через Запятую. Пример: ''dt_collected, data_source_id, virtual_machine_id'''  || chr(10);
         
@@ -61,6 +63,7 @@ BEGIN
         _description_proc = _description_proc || '_dt_start_arhive_partition - Начальная дата создания архивных партиций. Параметр имеет тип данных timestamp. Релевантен, если _is_create_arhive_partition = TRUE'  || chr(10);
         _description_proc = _description_proc || '_dt_end_arhive_partition - Конечная дата создания архивных партиций. Параметр имеет тип данных timestamp. Релевантен, если _is_create_arhive_partition = TRUE'  || chr(10);
         _description_proc = _description_proc || '_is_relocate_data_to_arhive_partition - Признак переноса данных из фактической партиции в архивную. Значение по умолчанию = FALSE'  || chr(10);
+        _description_proc = _description_proc || '_interval_before_reporting_period - Интервал, который говорит о том, что если отчетная дата минус этот интервал равна текущей дате, то процедуру можно запускать. Реализовано для выполнения процедуры по распианию. Значение по умолчанию = ''0 day''::interval'  || chr(10);       
     
         --=============fact============================
         _description_proc = _description_proc || '_is_create_fact_partition - Признак небходимости создания фактических партиций. Значение по умолчанию = TRUE'  || chr(10);
@@ -69,34 +72,40 @@ BEGIN
         _description_proc = _description_proc || '_dt_start_fact_partition - Дата начала создания фактических партиций. Параметр имеет тип данных timestamp. Релевантен, если _is_create_fact_partition = TRUE'  || chr(10);
         _description_proc = _description_proc || '_dt_end_fact_partition - Дата окончания создания фактических партиций. Параметр имеет тип данных timestamp. Релевантен, если _is_create_fact_partition = TRUE'  || chr(10);   
         
-        _description_proc = _description_proc || 'Пример выполнения процедуры:' || chr(10) || ' 
-        CALL public.create_partition (
-        _table_name => ''test''
-        ,_schema_name => ''public''
-        ,_is_create_index => TRUE
-        ,_list_fields_key_index => ''dt, txt''
-
-        --=============default============================
-        ,_is_create_default_partition => TRUE
-        ,_table_space_default => ''pg_default''
-        
-        --=============arhive============================
-        ,_is_create_arhive_partition => TRUE
-        ,_table_space_arhive => ''pg_default''
-        ,_size_arhive_partition => ''y''
-        ,_dt_start_arhive_partition => ''2023-01-01''
-        ,_dt_end_arhive_partition => ''2023-12-31''
-        ,_is_relocate_data_to_arhive_partition => TRUE
-
-        --=============fact============================
-        ,_is_create_fact_partition => TRUE 
-        ,_table_space_fact => ''pg_default''
-        ,_size_fact_partition => ''m''
-        ,_dt_start_fact_partition => ''2024-01-01''
-        ,_dt_end_fact_partition => ''2024-12-01''
-        
-    );';
-        RAISE NOTICE '%', _description_proc
+        _description_proc = _description_proc || chr(10) || 'Пример выполнения процедуры:' || chr(10) || ' 
+		CALL service.create_partition (
+			_table_name => ''test''
+			,_schema_name => ''service''
+			
+			--=============index============================  
+			,_is_create_index => TRUE
+			,_list_fields_key_index => ''dt,txt''
+			
+			--=============default============================
+			,_is_create_default_partition => TRUE
+			,_table_space_default => ''pg_default''
+			
+			--=============arhive============================
+			,_is_create_arhive_partition => TRUE
+			,_table_space_arhive => ''pg_default''
+			,_size_arhive_partition => ''y''
+			,_dt_start_arhive_partition => ''2023-01-01''
+			,_dt_end_arhive_partition => ''2023-12-31''
+			,_is_relocate_data_to_arhive_partition => TRUE
+			,_interval_before_reporting_period => ''1 day''::interval
+			
+			--=============fact============================
+			,_is_create_fact_partition => TRUE 
+			,_table_space_fact => ''pg_default''
+			,_size_fact_partition => ''m''
+			,_dt_start_fact_partition => ''2024-01-01''
+			,_dt_end_fact_partition => ''2024-12-01''
+			
+		)
+		;
+        '
+        ;
+        RAISE NOTICE '%', REPLACE(_description_proc,repeat(chr(9),2),'')
         ;
         RETURN
         ;
@@ -137,7 +146,7 @@ END IF
             -- _dt_start_arhive_partition приравниваем к первой дате года
             IF _dt_start_arhive_partition IS NULL AND _dt_end_arhive_partition IS NULL THEN
             
-                IF current_date::timestamp = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL THEN 
+                IF current_date::timestamp = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN 
                     --Определяем дату начала окончания архивных партиций
                     _dt_end_arhive_partition =  date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL
                     ;
@@ -476,9 +485,9 @@ END IF
             
                 IF current_date::timestamp = (
                                                 CASE
-                                                    WHEN EXTRACT(month FROM current_date) BETWEEN 1 AND 6 THEN date_trunc('year', current_date) + '6 month'::INTERVAL - '1 day'::INTERVAL
+                                                    WHEN EXTRACT(month FROM current_date) BETWEEN 1 AND 6 THEN date_trunc('year', current_date) + '6 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period
                                                 ELSE 
-                                                    date_trunc('year', current_date) + '1 year'::INTERVAL - '1 day'::INTERVAL 
+                                                    date_trunc('year', current_date) + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period
                                                 END
                                              )   
                 THEN 
@@ -824,7 +833,7 @@ END IF
         ;   
 --=====================================================Создание архивных партиций с диапазоном в полугодие конец============================================================    
     
---=====================================================Создание архивных партиций с диапазоном в квартал начало============================================================
+--=====================================================Создание архивных партиций с диапазоном в квартал начало============================================================--=====================================================Создание архивных партиций с диапазоном в квартал начало============================================================
 
         IF _size_arhive_partition = 'q' THEN
             --Проверяем значение параметров _dt_start_arhive_partition и _dt_end_arhive_partition.
@@ -834,7 +843,7 @@ END IF
             -- _dt_start_arhive_partition приравниваем к первой дате квартала
             IF _dt_start_arhive_partition IS NULL AND _dt_end_arhive_partition IS NULL THEN
             
-                IF current_date::timestamp = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL - '1 day'::INTERVAL THEN
+                IF current_date::timestamp = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                     --Определяем дату начала окончания архивных партиций
                     _dt_end_arhive_partition =  date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL - '1 day'::INTERVAL
                     ;
@@ -1171,7 +1180,7 @@ END IF
             -- _dt_start_arhive_partition приравниваем к первой дате месяца
             IF _dt_start_arhive_partition IS NULL AND _dt_end_arhive_partition IS NULL THEN
             
-                IF current_date::timestamp = date_trunc('month',current_date)::timestamp + '1 month'::INTERVAL - '1 day'::INTERVAL THEN
+                IF current_date::timestamp = date_trunc('month',current_date)::timestamp + '1 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                     --Определяем дату начала окончания архивных партиций
                     _dt_end_arhive_partition =  date_trunc('month',current_date)::timestamp + '1 month'::INTERVAL - '1 day'::INTERVAL --current_date::timestamp 
                     ;
@@ -1721,7 +1730,7 @@ END IF
             
             
                 --смотрим что бы текущая дата равнялась последнему дню месяца в случае _size_arhive_partition = 'm'                                             
-                IF _size_arhive_partition = 'm' AND current_date = date_trunc('month',current_date)::timestamp + '1 month'::INTERVAL - '1 day'::INTERVAL  THEN
+                IF _size_arhive_partition = 'm' AND current_date = date_trunc('month',current_date)::timestamp + '1 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                 
                     _dt_start_fact_partition = date_trunc('month',current_date)::timestamp + '1 month'::INTERVAL --первое число следующего месяца
                     ;
@@ -1760,7 +1769,7 @@ END IF
                 ;
 
                 --смотрим что бы текущая дата равнялась последнему дню квартала в случае _size_arhive_partition = 'q'                                               
-                IF _size_arhive_partition = 'q' AND current_date = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL - '1 day'::INTERVAL  THEN
+                IF _size_arhive_partition = 'q' AND current_date = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                 
                     _dt_start_fact_partition = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL --первое число следующего квартала
                     ;
@@ -1799,11 +1808,11 @@ END IF
                 ;
             
                 --смотрим что бы текущая дата равнялась последнему дню полугодия в случае _size_arhive_partition = 'h'                                              
-                IF _size_arhive_partition = 'h' AND current_date = (
+                IF _size_arhive_partition = 'hy' AND current_date = (
                                                                         CASE
-                                                                            WHEN EXTRACT(month FROM current_date) BETWEEN 1 AND 6 THEN date_trunc('year', current_date) + '6 month'::INTERVAL - '1 day'::INTERVAL
+                                                                            WHEN EXTRACT(month FROM current_date) BETWEEN 1 AND 6 THEN date_trunc('year', current_date) + '6 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period
                                                                         ELSE 
-                                                                            date_trunc('year', current_date) + '1 year'::INTERVAL - '1 day'::INTERVAL 
+                                                                            date_trunc('year', current_date) + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period
                                                                         END
                                                                     )    
                 THEN
@@ -1846,7 +1855,7 @@ END IF
                 ;
 
                 --смотрим что бы текущая дата равнялась последнему дню года в случае _size_arhive_partition = 'y'                                               
-                IF _size_arhive_partition = 'y' AND current_date = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL  THEN
+                IF _size_arhive_partition = 'y' AND current_date = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                 
                     _dt_start_fact_partition = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL --первое число следующего года
                     ;
@@ -1932,7 +1941,7 @@ END IF
             --будет определяться _dt_start_fact_partition и _dt_end_fact_partition
             IF  _dt_start_fact_partition IS NULL AND _dt_end_fact_partition IS NULL THEN
                 --смотрим что бы текущая дата равнялась последнему дню месяца в случае _size_arhive_partition = 'm'                                             
-                IF _size_arhive_partition = 'm' AND current_date = date_trunc('month',current_date)::timestamp + '1 month'::INTERVAL - '1 day'::INTERVAL  THEN
+                IF _size_arhive_partition = 'm' AND current_date = date_trunc('month',current_date)::timestamp + '1 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                 
                     _dt_start_fact_partition = date_trunc('month',current_date)::timestamp + '1 month'::INTERVAL --первое число следующего месяца
                     ;
@@ -1971,7 +1980,7 @@ END IF
                 ;
 
                 --смотрим что бы текущая дата равнялась последнему дню квартала в случае _size_arhive_partition = 'q'                                               
-                IF _size_arhive_partition = 'q' AND current_date = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL - '1 day'::INTERVAL  THEN
+                IF _size_arhive_partition = 'q' AND current_date = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                 
                     _dt_start_fact_partition = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL --первое число следующего квартала
                     ;
@@ -2010,11 +2019,11 @@ END IF
                 ;
             
                 --смотрим что бы текущая дата равнялась последнему дню полугодия в случае _size_arhive_partition = 'h'                                              
-                IF _size_arhive_partition = 'h' AND current_date = (
+                IF _size_arhive_partition = 'hy' AND current_date = (
                                                                         CASE
-                                                                            WHEN EXTRACT(month FROM current_date) BETWEEN 1 AND 6 THEN date_trunc('year', current_date) + '6 month'::INTERVAL - '1 day'::INTERVAL
+                                                                            WHEN EXTRACT(month FROM current_date) BETWEEN 1 AND 6 THEN date_trunc('year', current_date) + '6 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period
                                                                         ELSE 
-                                                                            date_trunc('year', current_date) + '1 year'::INTERVAL - '1 day'::INTERVAL 
+                                                                            date_trunc('year', current_date) + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period
                                                                         END
                                                                     )    
                 THEN
@@ -2057,7 +2066,7 @@ END IF
                 ;
 
                 --смотрим что бы текущая дата равнялась последнему дню года в случае _size_arhive_partition = 'y'                                               
-                IF _size_arhive_partition = 'y' AND current_date = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL  THEN
+                IF _size_arhive_partition = 'y' AND current_date = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                 
                     _dt_start_fact_partition = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL --первое число следующего года
                     ;
@@ -2143,7 +2152,7 @@ END IF
             IF  _dt_start_fact_partition IS NULL AND _dt_end_fact_partition IS NULL THEN
 
                 --смотрим что бы текущая дата равнялась последнему дню квартала в случае _size_arhive_partition = 'q'                                               
-                IF _size_arhive_partition = 'q' AND current_date = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL - '1 day'::INTERVAL  THEN
+                IF _size_arhive_partition = 'q' AND current_date = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                 
                     _dt_start_fact_partition = date_trunc('quarter',current_date)::timestamp + '3 month'::INTERVAL --первое число следующего квартала
                     ;
@@ -2182,11 +2191,11 @@ END IF
                 ;
             
                 --смотрим что бы текущая дата равнялась последнему дню полугодия в случае _size_arhive_partition = 'h'                                              
-                IF _size_arhive_partition = 'h' AND current_date = (
+                IF _size_arhive_partition = 'hy' AND current_date = (
                                                                         CASE
-                                                                            WHEN EXTRACT(month FROM current_date) BETWEEN 1 AND 6 THEN date_trunc('year', current_date) + '6 month'::INTERVAL - '1 day'::INTERVAL
+                                                                            WHEN EXTRACT(month FROM current_date) BETWEEN 1 AND 6 THEN date_trunc('year', current_date) + '6 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period
                                                                         ELSE 
-                                                                            date_trunc('year', current_date) + '1 year'::INTERVAL - '1 day'::INTERVAL 
+                                                                            date_trunc('year', current_date) + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period
                                                                         END
                                                                     )    
                 THEN
@@ -2229,7 +2238,7 @@ END IF
                 ;
 
                 --смотрим что бы текущая дата равнялась последнему дню года в случае _size_arhive_partition = 'y'                                               
-                IF _size_arhive_partition = 'y' AND current_date = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL  THEN
+                IF _size_arhive_partition = 'y' AND current_date = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                 
                     _dt_start_fact_partition = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL --первое число следующего года
                     ;
@@ -2314,11 +2323,11 @@ END IF
             IF  _dt_start_fact_partition IS NULL AND _dt_end_fact_partition IS NULL THEN
             
                 --смотрим что бы текущая дата равнялась последнему дню полугодия в случае _size_arhive_partition = 'h'                                              
-                IF _size_arhive_partition = 'h' AND current_date = (
+                IF _size_arhive_partition = 'hy' AND current_date = (
                                                                         CASE
-                                                                            WHEN EXTRACT(month FROM current_date) BETWEEN 1 AND 6 THEN date_trunc('year', current_date) + '6 month'::INTERVAL - '1 day'::INTERVAL
+                                                                            WHEN EXTRACT(month FROM current_date) BETWEEN 1 AND 6 THEN date_trunc('year', current_date) + '6 month'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period
                                                                         ELSE 
-                                                                            date_trunc('year', current_date) + '1 year'::INTERVAL - '1 day'::INTERVAL 
+                                                                            date_trunc('year', current_date) + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period
                                                                         END
                                                                     )    
                 THEN
@@ -2364,7 +2373,7 @@ END IF
                 ;
 
                 --смотрим что бы текущая дата равнялась последнему дню года в случае _size_arhive_partition = 'y'                                               
-                IF _size_arhive_partition = 'y' AND current_date = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL  THEN
+                IF _size_arhive_partition = 'y' AND current_date = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                 
                     _dt_start_fact_partition = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL --первое число следующего года
                     ;
@@ -2455,7 +2464,7 @@ END IF
             IF  _dt_start_fact_partition IS NULL AND _dt_end_fact_partition IS NULL THEN            
 
                 --смотрим что бы текущая дата равнялась последнему дню года в случае _size_arhive_partition = 'y'                                               
-                IF _size_arhive_partition = 'y' AND current_date = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL  THEN
+                IF _size_arhive_partition = 'y' AND current_date = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL - '1 day'::INTERVAL - _interval_before_reporting_period THEN
                 
                     _dt_start_fact_partition = date_trunc('year',current_date)::timestamp + '1 year'::INTERVAL --первое число следующего года
                     ;
